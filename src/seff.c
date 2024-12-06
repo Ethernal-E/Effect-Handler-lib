@@ -19,6 +19,10 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/mman.h>
+
+
 
 #include "mem/seff_mem.h"
 #include "seff.h"
