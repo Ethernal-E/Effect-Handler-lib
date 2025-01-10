@@ -19,10 +19,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/mman.h>
-
-
 
 #include "mem/seff_mem.h"
 #include "seff.h"
@@ -36,46 +32,6 @@
 
 extern __thread seff_coroutine_t *_seff_current_coroutine;
 
-static void *alloc_coroutine_mem(size_t size) {
-    
-    size_t pagesize = (size_t) sysconf(_SC_PAGESIZE);
-    
-    size_t alloc_size = ((size + pagesize - 1) / pagesize) * pagesize; 
-    void *p = mmap(NULL, alloc_size,
-                   PROT_READ | PROT_WRITE,
-                   MAP_PRIVATE | MAP_ANONYMOUS,
-                   -1, 0);
-    if (p == MAP_FAILED) {
-        return NULL;
-    }
-    return p;
-}
-
-
-static void free_coroutine_mem(void *p, size_t size) {
-    if (!p) return;
-    size_t pagesize = (size_t) sysconf(_SC_PAGESIZE);
-    size_t alloc_size = ((size + pagesize - 1) / pagesize) * pagesize; 
-    munmap(p, alloc_size);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 seff_request_t seff_resume_handling_all(seff_coroutine_t *k, void *arg) {
     return seff_resume(k, arg, ~0);
 }
@@ -86,6 +42,10 @@ void frame_push(seff_cont_t *cont, void *elt) {
 }
 
 seff_coroutine_t *seff_current_coroutine(void) { return _seff_current_coroutine; }
+
+#define STACK_POLICY_OVERCOM 2
+
+
 #ifdef STACK_POLICY_SEGMENTED
 __asm__("seff_current_stack_top:"
         "movq %fs:0x70,%rax;"
@@ -96,8 +56,7 @@ void seff_coroutine_reset(seff_coroutine_t *k) {}
 
 void seff_coroutine_delete(seff_coroutine_t *k) {
     seff_coroutine_release(k);
-    //free(k);
-    free_coroutine_mem(k, sizeof(*k));
+    free(k);
 }
 
 void seff_coroutine_release(seff_coroutine_t *k) {
@@ -110,25 +69,67 @@ void seff_coroutine_release(seff_coroutine_t *k) {
             while (segment) {
                 seff_stack_segment_t *old = segment;
                 segment = segment->next;
-                //free(old);
-                free_coroutine_mem(old, sizeof(*old));
+                free(old);
             }
         },
-        { free(k->frame_ptr, k->allocated_frame_size); }, {_Pragma("not implemented")});
+        
+        {
+         free(k->frame_ptr);
+         
+        }, 
+        {
+         // release logic for mmap
+         munmap(k->frame_ptr, k->stack_size);
+        
+        });
 }
 
 seff_coroutine_t *seff_coroutine_new(seff_start_fun_t *fn, void *arg) {
-    //seff_coroutine_t *k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
-    seff_coroutine_t *k = (seff_coroutine_t *)alloc_coroutine_mem(sizeof(seff_coroutine_t));
-    seff_coroutine_init(k, fn, arg);
-    return k;
+    
+    seff_coroutine_t *k;
+    
+    #if STACK_POLICY == STACK_POLICY_OVERCOM
+    // allocate
+    	k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    
+    //if(k == MAP_FAILED){
+    	//return NULL;
+    //}
+
+    #else
+    	k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
+    #endif
+    	seff_coroutine_init(k, fn, arg);
+    	return k;
+    
+    
+    
+    
+    
+    
+    
+     
+    
 }
 
 seff_coroutine_t *seff_coroutine_new_sized(seff_start_fun_t *fn, void *arg, size_t frame_size) {
-    //seff_coroutine_t *k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
-    seff_coroutine_t *k = (seff_coroutine_t *)alloc_coroutine_mem(sizeof(seff_coroutine_t));
-    seff_coroutine_init_sized(k, fn, arg, frame_size);
-    return k;
+
+    seff_coroutine_t *k;
+    
+    #if STACK_POLICY == STACK_POLICY_OVERCOM
+    // allocate
+    	k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    
+    //if(k == MAP_FAILED){
+    	//return NULL;
+    //}
+
+    #else
+    	k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
+    #endif
+    	seff_coroutine_init_sized(k, fn, arg, frame_size);
+    	return k;
+    
 }
 
 // TODO: We're getting this from object file seff_mem.o, this seems dirty
@@ -147,13 +148,6 @@ bool seff_coroutine_init_sized(
     if (!stack) {
         return false;
     }
-
-    k->allocated_frame_size = frame_size + overhead;
-    
-
-
-
-
     k->frame_ptr = stack;
     k->resume_point.rsp = (void *)rsp;
     k->resume_point.rbp = NULL;
