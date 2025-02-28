@@ -44,8 +44,7 @@ void frame_push(seff_cont_t *cont, void *elt) {
 
 seff_coroutine_t *seff_current_coroutine(void) { return _seff_current_coroutine; }
 
-//#define STACK_POLICY_OVERCOM 2
-
+#define STACK_POLICY_OVERCOM 2
 
 
 #ifdef STACK_POLICY_SEGMENTED
@@ -90,19 +89,16 @@ seff_coroutine_t *seff_coroutine_new(seff_start_fun_t *fn, void *arg) {
     
     seff_coroutine_t *k;
     
-    //#if STACK_POLICY == STACK_POLICY_OVERCOM
-    #ifdef STACK_POLICY_SEGMENTED
+    #if STACK_POLICY == STACK_POLICY_OVERCOM
     // allocate
-    	k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
-    	//k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    	k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     
     //if(k == MAP_FAILED){
     	//return NULL;
     //}
 
     #else
-    	//k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
-    	k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    	k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
     #endif
     	seff_coroutine_init(k, fn, arg);
     	return k;
@@ -121,18 +117,16 @@ seff_coroutine_t *seff_coroutine_new_sized(seff_start_fun_t *fn, void *arg, size
 
     seff_coroutine_t *k;
     
-    //#if STACK_POLICY == STACK_POLICY_OVERCOM
-    #ifdef STACK_POLICY_SEGMENTED
+    #if STACK_POLICY == STACK_POLICY_OVERCOM
     // allocate
-    	//k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    	k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
+    	k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    
     //if(k == MAP_FAILED){
     	//return NULL;
     //}
 
     #else
-    	//k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
-    	k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    	k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
     #endif
     	seff_coroutine_init_sized(k, fn, arg, frame_size);
     	return k;
@@ -211,7 +205,7 @@ void seff_throw(effect_id eff_id, void *payload) {
     // The state code is set by seff_exit
     seff_coroutine_t *handler = seff_locate_handler(eff_id);
     if (handler) {
-       seff_exit(handler, eff_id, payload);
+        seff_exit(handler, eff_id, payload);
     } else {
         /* Execute the handler in-place, since default handlers are not allowed to pause the
          * coroutine */
