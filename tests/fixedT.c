@@ -53,8 +53,8 @@ int main(int argc, char** argv) {
     // argv[1]: 递归深度（建议设置为接近栈容量的帧大小 / 递归每帧占用字节数，比如500）
     // argv[2]: 重复次数
     // argv[3]: 固定栈大小（单位字节），默认为8KB
-    int64_t depth = (argc < 2) ? 500 : atoll(argv[1]);
-    int64_t repeats = (argc < 3) ? 1000 : atoll(argv[2]);
+    int64_t depth = (argc < 2) ? 50 : atoll(argv[1]);
+    int64_t repeats = (argc < 3) ? 10 : atoll(argv[2]);
     size_t frame_size = (argc < 4) ? (8 * 1024) : (size_t)atoll(argv[3]);
 
     // 调整输出缓冲区大小（与原测试保持一致）

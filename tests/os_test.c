@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <sys/resource.h>  // 用于 getrusage()
 
-#define SMALL_STACK_SIZE 10  // 每个协程使用较小的栈空间
+#define SMALL_STACK_SIZE 8192  // 每个协程使用较小的栈空间
 
 // 定义一个效果 process_op，用于模拟每个轻量级进程的内存操作，携带一个进程ID
 DEFINE_EFFECT(process_op, 0, void, { int64_t pid; });

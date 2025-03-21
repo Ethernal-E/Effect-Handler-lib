@@ -108,7 +108,7 @@ seff_coroutine_t *seff_coroutine_new(seff_start_fun_t *fn, void *arg) {
     #ifdef STACK_POLICY_VM
     // allocate
     	//k = (seff_coroutine_t *)malloc(sizeof(seff_coroutine_t));
-    	k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    	k = (seff_coroutine_t *)mmap(NULL, sizeof(seff_coroutine_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     
     //if(k == MAP_FAILED){
     	//return NULL;

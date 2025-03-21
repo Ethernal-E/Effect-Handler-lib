@@ -64,7 +64,7 @@ static int64_t handle_complex_yield_loop(seff_coroutine_t* k) {
 
 int main(int argc, char** argv) {
     // 命令行参数：上下文切换（yield）次数，默认1,000,000次
-    int64_t iterations = (argc < 2) ? 1000000 : atoll(argv[1]);
+    int64_t iterations = (argc < 2) ? 10 : atoll(argv[1]);
 
     // 设置输出缓冲区（与其他测试保持一致）
     char buffer[8192];

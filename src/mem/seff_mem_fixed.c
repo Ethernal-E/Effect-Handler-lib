@@ -22,7 +22,7 @@
 #include "seff_mem.h"
 
 // These numbers change between policies
-#define DEFAULT_DEFAULT_FRAME_SIZE 8 * 1024
+#define DEFAULT_DEFAULT_FRAME_SIZE 150 * 1024
 #include "seff_mem_common.h"
 
 seff_frame_ptr_t init_stack_frame(size_t frame_size, char **rsp) {

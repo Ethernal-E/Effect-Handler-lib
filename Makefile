@@ -12,7 +12,7 @@
 #
 
 BUILD        := debug
-STACK_POLICY := fixed
+STACK_POLICY := segmented
 ARCH         := x86-64
 
 CC  := clang

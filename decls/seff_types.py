@@ -25,7 +25,7 @@ parser.add_argument('--arch', choices=[x86_64], default=x86_64)
 segmented = 'segmented'
 fixed = 'fixed'
 vmmem = 'vmmem'
-parser.add_argument('--stack', choices=[segmented, fixed, vmmem], default=fixed)
+parser.add_argument('--stack', choices=[segmented, fixed, vmmem], default=vmmem)
 
 parser.add_argument('--sequence-counters', action='store_true')
 
