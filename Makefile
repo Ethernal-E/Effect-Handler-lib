@@ -12,7 +12,7 @@
 #
 
 BUILD        := debug
-STACK_POLICY := segmented
+STACK_POLICY := vmmem
 ARCH         := x86-64
 
 CC  := clang
