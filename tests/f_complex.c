@@ -11,12 +11,8 @@
 
 
 DEFINE_EFFECT(complex_yield, 0, void, { });
-
-
 static pthread_mutex_t sync_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 static volatile int global = 0;
-
 
 static inline void extra_work(void) {
     int sum = 0;
@@ -25,7 +21,6 @@ static inline void extra_work(void) {
     }
     global += sum;
 }
-
 
 static void* complex_yield_coroutine(void* arg) {
     int64_t iterations = *(int64_t*)arg;
