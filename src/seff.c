@@ -74,6 +74,9 @@ void seff_coroutine_delete(seff_coroutine_t *k) {
 #endif
 }
 
+
+
+
 void seff_coroutine_release(seff_coroutine_t *k) {
     STACK_POLICY_SWITCH(
         {
@@ -194,6 +197,8 @@ bool seff_coroutine_init_sized(
     k->resume_point.rsp = ((char *)k->resume_point.rsp) - pad;
 
     assert(((uintptr_t)k->resume_point.rsp) % 16 == 0);
+    
+
 
     return true;
 }

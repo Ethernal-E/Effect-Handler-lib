@@ -18,6 +18,7 @@ static inline int64_t processOperation(int64_t pid, int64_t res) {
 
 // 递归处理 process_op 效果
 static int64_t handleProcessOpRec(seff_coroutine_t *k) {
+    
     seff_request_t req = seff_resume(k, NULL, HANDLES(process_op));
     switch (req.effect) {
         CASE_EFFECT(req, process_op, {
@@ -41,7 +42,7 @@ static void* process_func(void* arg) {
 
 int main(int argc, char** argv) {
     // 默认创建 10000 个轻量级进程（协程），也可通过命令行参数指定
-    int64_t num_processes = (argc < 2) ? 10 : atoll(argv[1]);
+    int64_t num_processes = (argc < 2) ? 100000 : atoll(argv[1]);
     int64_t total = 0;
 
     // 分配存储所有协程指针的数组
@@ -53,6 +54,7 @@ int main(int argc, char** argv) {
 
     // 利用 seff_coroutine_new_sized 创建大量轻量级进程，每个协程分配较小的栈以降低内存占用
     for (int64_t i = 0; i < num_processes; i++) {
+        
         processes[i] = seff_coroutine_new_sized(process_func, (void*)i, SMALL_STACK_SIZE);
         if (!processes[i]) {
             
@@ -62,6 +64,7 @@ int main(int argc, char** argv) {
 
     // 依次运行每个协程并利用效果处理器处理 process_op 效果
     for (int64_t i = 0; i < num_processes; i++) {
+        
         int64_t res = handleProcessOpRec(processes[i]);
         total += res;
         seff_coroutine_delete(processes[i]);

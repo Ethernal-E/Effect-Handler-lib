@@ -32,4 +32,6 @@ E __attribute__((no_split_stack)) seff_frame_ptr_t init_stack_frame(size_t frame
 
 E __attribute__((no_split_stack)) void release_stack_frame(seff_frame_ptr_t stack);
 
+E __attribute__((no_split_stack)) void ensure_stack_space();
+
 #endif

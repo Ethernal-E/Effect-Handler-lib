@@ -51,6 +51,7 @@ prop_t result;
 prop_t x;
 
 void *example(void *args) {
+    
     size_t iters = (size_t)args;
 
     printf("iters: %lu\n", iters);
@@ -138,6 +139,7 @@ void handle(seff_coroutine_t *k, prop_t *response) {
 }
 
 void *reverse(void *args) {
+    
     seff_coroutine_t *child = seff_coroutine_new(example, args);
 
     handle(child, NULL);
@@ -150,6 +152,7 @@ void *reverse(void *args) {
 }
 
 void *evaluate(seff_coroutine_t *k, void *args) {
+    
     double value;
 
     seff_request_t request = seff_resume(k, NULL, e_smooth);
