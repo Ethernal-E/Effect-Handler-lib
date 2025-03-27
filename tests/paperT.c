@@ -36,15 +36,18 @@ int main(int argc, char *argv[]) {
          max_depth = atoi(argv[1]);
     }
     
-    seff_coroutine_t *co = seff_coroutine_new(fill_fn, &max_depth);
+    //seff_coroutine_t *co = seff_coroutine_new(fill_fn, &max_depth);
     
-    seff_resume_handling_all(co, NULL);
-    
-    
+    //seff_resume_handling_all(co, NULL);
     
     
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
+    
+    seff_coroutine_t *co = seff_coroutine_new(fill_fn, &max_depth);
+    
+    seff_resume_handling_all(co, NULL);
+    
     
     
     clock_gettime(CLOCK_MONOTONIC, &end);

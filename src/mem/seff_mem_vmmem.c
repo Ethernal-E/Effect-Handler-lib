@@ -12,7 +12,7 @@
 #include "seff_mem.h"
 
 
-// 期望的协程可用栈大小（例如64KB）
+
 #define DEFAULT_DEFAULT_FRAME_SIZE (150 * 1024)
 
 #ifndef PAGE_SIZE
@@ -22,115 +22,158 @@
 
 
 
-#define GUARD_SIZE (PAGE_SIZE)                       // 一页作为 guard page（通常为 4KB）
+#define GUARD_SIZE (PAGE_SIZE)                      
 
-#define STACK_EXPANSION_THRESHOLD (64)
+
 
 #include "seff_mem_common.h"
 
-// 向上取整到 PAGE_SIZE 的辅助函数
+
+static void *g_stack_region = NULL;
+static size_t g_allowed_size = 0; 
+static size_t g_total_size = 0;   
+
+
+static struct sigaction old_sigsegv_action;
+
+
+static stack_t g_alt_stack;
+
+
+static size_t committed_size = 0;
+
+
 static inline size_t round_up(size_t size) {
     return (size + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 }
 
-/*
- * 内存映射布局（假设栈向下增长）：
- *
- *    +------------------------------+ <-- region + total_size (映射高地址)
- *    |     Allowed 区 (可读写)       |
- *    |   [region+GUARD_SIZE, ... )    |
- *    +------------------------------+
- *    |     Guard page (不可访问)      |
- *    |   [region, region+GUARD_SIZE)  |
- *    +------------------------------+ <-- region (映射起始地址)
- *
- * 初始栈指针设为 region + total_size（经 16 字节对齐）。
- *
- * 采用 MAP_NORESERVE 使得 mmap 时不立即保留物理内存，利用 overcommit 策略。
- */
-static void *g_stack_region = NULL;
-static size_t g_allowed_size = 0; // Allowed 区大小（页对齐后）
-static size_t g_total_size = 0;   // 总映射大小 = GUARD_SIZE + allowed_size
 
-/*
- * 初始化虚拟内存栈。
- * frame_size 为期望的允许区域大小（未必页对齐），内部会向上取整。
- * 返回映射起始地址，同时通过 rsp 返回初始栈指针（位于映射顶部）。
- */
+static void segv_handler(int sig, siginfo_t *si, void *unused) {
+    fprintf(stderr, "segv_handler invoked\n");
+    (void)sig; (void)unused;
+    void *addr = si->si_addr;
+    uintptr_t region_start = (uintptr_t)g_stack_region;
+    uintptr_t allowed_start = region_start + GUARD_SIZE;
+    uintptr_t allowed_end = region_start + g_total_size;
+    uintptr_t fault_addr = (uintptr_t)addr;
+
+    if (fault_addr >= allowed_start && fault_addr < allowed_end) {
+        
+        uintptr_t current_commit_end = allowed_start + committed_size;
+        if (fault_addr < current_commit_end) {
+           
+            fprintf(stderr, "Fault in already committed region\n");
+            exit(1);
+        }
+
+        
+        size_t commit_pages = (committed_size == 0) ? 1 : (committed_size / PAGE_SIZE);
+        if (commit_pages == 0) commit_pages = 1;
+        size_t commit_size = commit_pages * PAGE_SIZE;
+        
+        if (committed_size != 0) {
+            commit_size = committed_size; 
+        }
+        
+        if (committed_size + commit_size > g_allowed_size) {
+            commit_size = g_allowed_size - committed_size;
+        }
+        uintptr_t commit_start = current_commit_end;
+        fprintf(stderr, "Committing from %p, size %zu bytes (committed_size=%zu)\n",
+                (void*)commit_start, commit_size, committed_size);
+        if (mprotect((void*)commit_start, commit_size, PROT_READ | PROT_WRITE) == 0) {
+            committed_size += commit_size;
+            fprintf(stderr, "After commit, committed_size=%zu\n", committed_size);
+            return;
+        } else {
+            perror("mprotect in segv_handler failed");
+            exit(1);
+        }
+    }
+    
+    if (old_sigsegv_action.sa_sigaction) {
+        fprintf(stderr, "Delegating fault to old handler\n");
+        old_sigsegv_action.sa_sigaction(sig, si, unused);
+    } else {
+        fprintf(stderr, "No old handler, resetting signal and raising\n");
+        signal(sig, SIG_DFL);
+        raise(sig);
+    }
+}
+
+
+static void init_alt_stack(void) {
+    size_t alt_stack_size = MINSIGSTKSZ * 2; 
+    void *alt_sp = malloc(alt_stack_size);
+    if (!alt_sp) {
+        perror("malloc for alt stack failed");
+        exit(1);
+    }
+    g_alt_stack.ss_sp = alt_sp;
+    g_alt_stack.ss_size = alt_stack_size;
+    g_alt_stack.ss_flags = 0;
+    if (sigaltstack(&g_alt_stack, NULL) != 0) {
+        perror("sigaltstack failed");
+        exit(1);
+    }
+}
+
+
+static void release_alt_stack(void) {
+    stack_t disable_stack;
+    disable_stack.ss_flags = SS_DISABLE;
+    disable_stack.ss_sp = NULL;
+    disable_stack.ss_size = 0;
+    if (sigaltstack(&disable_stack, NULL) != 0) {
+        perror("disabling alt stack failed");
+    }
+    free(g_alt_stack.ss_sp);
+    g_alt_stack.ss_sp = NULL;
+    g_alt_stack.ss_size = 0;
+}
+
+
 void *init_stack_frame(size_t frame_size, char **rsp) {
+    
     g_allowed_size = round_up(frame_size);
     g_total_size = GUARD_SIZE + g_allowed_size;
-    // 使用 MAP_NORESERVE 标志，启用 overcommit 策略
+    
     void *region = mmap(NULL, g_total_size,
-                        PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+                        PROT_NONE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (region == MAP_FAILED) {
         perror("mmap failed");
         exit(1);
     }
-    // 设置底部的 Guard page（映射起始处）为不可访问
-    if (mprotect(region, GUARD_SIZE, PROT_NONE) != 0) {
-        perror("mprotect guard page failed");
+    g_stack_region = region;
+    
+    init_alt_stack();
+    
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    sa.sa_sigaction = segv_handler;
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGSEGV, &sa, &old_sigsegv_action) != 0) {
+        perror("sigaction failed");
         exit(1);
     }
-    g_stack_region = region;
+    
+    committed_size = 0;
+    
     char *initial_sp = (char*)region + g_total_size;
-    // 16 字节对齐
     initial_sp = (char*)((uintptr_t)initial_sp & ~((uintptr_t)0xF));
     if (rsp)
         *rsp = initial_sp;
     return region;
 }
 
-/*
- * 释放虚拟内存栈。
- */
+
 void release_stack_frame(void *stack) {
-    if (munmap(stack, g_total_size) != 0) {
+    (void)stack; 
+    sigaction(SIGSEGV, &old_sigsegv_action, NULL);
+    release_alt_stack();
+    if (munmap(g_stack_region, g_total_size) != 0) {
         perror("munmap failed");
     }
 }
-
-/*
- * 扩展虚拟内存栈。
- * new_frame_size 为新的允许区域大小（未必页对齐），内部会向上取整。
- * 扩展后，全局变量会更新，并通过 new_rsp 返回新的初始栈指针。
- */
-void expand_stack_frame(size_t new_frame_size, char **new_rsp) {
-    size_t new_allowed_size = round_up(new_frame_size);
-    size_t new_total_size = GUARD_SIZE + new_allowed_size;
-    void *new_region = mremap(g_stack_region, g_total_size, new_total_size, MREMAP_MAYMOVE);
-    if (new_region == MAP_FAILED) {
-         perror("mremap failed");
-         exit(1);
-    }
-    g_stack_region = new_region;
-    g_allowed_size = new_allowed_size;
-    g_total_size = new_total_size;
-    // Guard page位于映射起始处，mremap后一般属性保持不变
-    char *new_sp = (char*)new_region + g_total_size;
-    new_sp = (char*)((uintptr_t)new_sp & ~((uintptr_t)0xF));
-    if (new_rsp)
-         *new_rsp = new_sp;
-}
-
-/*
- * 主动检测剩余栈空间，如果当前栈指针距离允许区域下界太近则扩展栈。
- * 由于栈向下增长，允许区域为 [g_stack_region+GUARD_SIZE, g_stack_region+g_total_size)。
- * 当当前栈指针低于 (g_stack_region+GUARD_SIZE + STACK_EXPANSION_THRESHOLD) 时，
- * 认为剩余空间不足，从而主动扩展。
- */
-void ensure_stack_space(void) {
-    char dummy;
-    char *current_sp = &dummy;
-    char *allowed_bottom = (char*)g_stack_region + GUARD_SIZE;
-    if (current_sp < allowed_bottom + STACK_EXPANSION_THRESHOLD) {
-        size_t new_allowed = g_allowed_size * 2; // 例如扩展为2倍
-        char *new_sp = NULL;
-        fprintf(stderr, "Proactively expanding stack: new allowed size = %zu bytes\n", new_allowed);
-        expand_stack_frame(new_allowed, &new_sp);
-        fprintf(stderr, "New stack pointer: %p\n", (void*)new_sp);
-    }
-}
-
-
