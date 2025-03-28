@@ -51,7 +51,7 @@ static int64_t handle_complex_yield_loop(seff_coroutine_t* k) {
 
 int main(int argc, char** argv) {
     
-    int64_t iterations = (argc < 2) ? 10 : atoll(argv[1]);
+    int64_t iterations = (argc < 2) ? 10000 : atoll(argv[1]);
 
     
     char buffer[8192];

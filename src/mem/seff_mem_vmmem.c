@@ -49,7 +49,7 @@ static inline size_t round_up(size_t size) {
 
 
 static void segv_handler(int sig, siginfo_t *si, void *unused) {
-    fprintf(stderr, "segv_handler invoked\n");
+    
     (void)sig; (void)unused;
     void *addr = si->si_addr;
     uintptr_t region_start = (uintptr_t)g_stack_region;
@@ -65,31 +65,37 @@ static void segv_handler(int sig, siginfo_t *si, void *unused) {
             fprintf(stderr, "Fault in already committed region\n");
             exit(1);
         }
+        
+        size_t commit_size;
+	if (committed_size == 0) {
+    		
+    		commit_size = PAGE_SIZE;
+	} else {
+    	
+    		commit_size = committed_size;
+	}
+	
+	if (committed_size + commit_size > g_allowed_size) {
+    		commit_size = g_allowed_size - committed_size;
+	}
+
+	uintptr_t commit_start = allowed_start + committed_size;
+	
+
+	if (mprotect((void*)commit_start, commit_size, PROT_READ | PROT_WRITE) == 0) {
+    		committed_size += commit_size;
+    		
+    		return;
+	} else {
+    		perror("mprotect in segv_handler failed");
+    		exit(1);
+	}
+	
+     }
 
         
-        size_t commit_pages = (committed_size == 0) ? 1 : (committed_size / PAGE_SIZE);
-        if (commit_pages == 0) commit_pages = 1;
-        size_t commit_size = commit_pages * PAGE_SIZE;
         
-        if (committed_size != 0) {
-            commit_size = committed_size; 
-        }
-        
-        if (committed_size + commit_size > g_allowed_size) {
-            commit_size = g_allowed_size - committed_size;
-        }
-        uintptr_t commit_start = current_commit_end;
-        fprintf(stderr, "Committing from %p, size %zu bytes (committed_size=%zu)\n",
-                (void*)commit_start, commit_size, committed_size);
-        if (mprotect((void*)commit_start, commit_size, PROT_READ | PROT_WRITE) == 0) {
-            committed_size += commit_size;
-            fprintf(stderr, "After commit, committed_size=%zu\n", committed_size);
-            return;
-        } else {
-            perror("mprotect in segv_handler failed");
-            exit(1);
-        }
-    }
+
     
     if (old_sigsegv_action.sa_sigaction) {
         fprintf(stderr, "Delegating fault to old handler\n");

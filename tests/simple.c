@@ -11,7 +11,7 @@ void *fn(void *arg) {
 }
 
 int main(void) {
-    seff_coroutine_t *k = seff_coroutine_new(fn, NULL);
+    seff_coroutine_t *k = seff_coroutine_new_sized(fn, NULL, 150*1024);
     
     struct timespec start, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
