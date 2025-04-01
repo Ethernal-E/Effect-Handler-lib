@@ -29,18 +29,18 @@
 #include "seff_mem_common.h"
 
 
-static void *g_stack_region = NULL;
-static size_t g_allowed_size = 0; 
-static size_t g_total_size = 0;   
+static __thread void *g_stack_region = NULL;
+static __thread size_t g_allowed_size = 0; 
+static __thread size_t g_total_size = 0;   
 
 
-static struct sigaction old_sigsegv_action;
+static __thread struct sigaction old_sigsegv_action;
 
 
-static stack_t g_alt_stack;
+static __thread stack_t g_alt_stack;
 
 
-static size_t committed_size = 0;
+static __thread size_t committed_size = 0;
 
 
 static inline size_t round_up(size_t size) {
